@@ -1,6 +1,8 @@
 # ToltecDatabase. 
 Author: Alexey Bochkov, Novosibirsk, Russia. Contact with me: renaissancesoft [at] gmail [d0t] com
+
 Pure java database.
+
 In the development process - use at your own risk.
 
 The basic idea is to quickly access the data on the index and the separation of indexes and data into different disks (index on ssd, data on hdd).
