@@ -273,6 +273,12 @@ public class ToltecRaid implements HttpGetDataInterface {
 	
 	public String generateTable (Set<String> cols, ArrayList<DataRow>data) {
 		StringBuffer sb = new StringBuffer();
+		sb.append("<style>");
+		sb.append("table, th, td {\n");
+		sb.append("   border: 1px solid black;\n");
+		sb.append("   border-collapse: collapse\n"); 
+		sb.append("}\n");
+		sb.append("</style>");
 		sb.append("<table>");
 		sb.append("<tr>");
 		

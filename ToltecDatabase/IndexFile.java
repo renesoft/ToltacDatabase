@@ -170,6 +170,9 @@ public class IndexFile {
 					//continue;	
 				}
 			}
+			if (readedHash > hash) {
+				break ;
+			}
 			pos += 16;
 		}
 		long[] retOffsets = new long[ids.size()];

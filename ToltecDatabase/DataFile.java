@@ -509,13 +509,15 @@ public class DataFile extends Thread {
 				fileWorker.goTo(i.position);
 				DataRow obj = new DataRow();
 				obj.offset = i.position;
-				int r = readData(obj);
+				int r = readData(obj);				
 				ret.add(obj);
 			}
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		
 		return ret;
 		// }
 
