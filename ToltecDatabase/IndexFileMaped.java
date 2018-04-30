@@ -18,6 +18,8 @@ import java.util.Iterator;
 
 import javax.lang.model.element.QualifiedNameable;
 
+import Tools.Pair;
+
 public class IndexFileMaped extends IndexFile {
 
 	HashMap<Long, ArrayList<Long>> m_mapedHashes = new HashMap<>();
@@ -142,24 +144,16 @@ public class IndexFileMaped extends IndexFile {
 		if (ids==null)
 			return -1;
 		ArrayList<Integer> ipositions = m_mapedPositions.get(oldHash);
-		ArrayList<Long> Newids = m_mapedHashes.get(newHash);
-		ArrayList<Integer> Newipositions = m_mapedPositions.get(newHash);
-		
-		if (oldHash == newHash) {
-			//if (newPos >= 0 ) {
+		//ArrayList<Long> Newids = m_mapedHashes.get(newHash);
+		//ArrayList<Integer> Newipositions = m_mapedPositions.get(newHash);		
+		if (oldHash == newHash) {			
 				for (int i = 0; i < ids.size(); i++) {
 					if (ids.get(i) == oldPos) {
 						ids.remove(i);
-						//if (newPos!=-1) {
 						ids.add(i, newPos);
-						//}
-						//ipositions.remove(i);
 						break ;
 					}
 				}
-
-				//ipositions.add((int) newPos);
-			//}
 		}else {
 			for (int i = 0; i < ids.size(); i++) {
 				if (ids.get(i) == oldPos) {
@@ -170,74 +164,7 @@ public class IndexFileMaped extends IndexFile {
 			}
 			add(newHash,newPos);
 		}
-		
-		/*if (Newids == null && newHash != 0) {
-			Newids = new ArrayList<>();
-			Newipositions = new ArrayList<>();
-			m_mapedHashes.put(newHash, Newids);
-			m_mapedPositions.put(newHash, Newipositions);
-		} else {
-			return 0;
-		}*/
-
-		/*for (int i = 0; i < ids.size(); i++) {
-			Long id1 = ids.get(i);
-			Integer ipos = ipositions.get(i);
-			if (newHash != 0) {
-				if (id1 == oldPos) {
-					if (newPos != 0) {
-						id1 = newPos;
-					}
-					Newids.add(id1);
-					Newipositions.add(ipos);
-					ids.remove(i);
-					ipositions.remove(i);
-					i--;
-				}
-			} else {
-				if (id1 == oldPos) {
-					if (newPos != 0) {
-						id1 = newPos;
-					}
-					ids.remove(i);
-					ids.add(i, id1);
-				}
-			}
-
-		}*/
-
+	
 		return 0;
 	}
-
-	void analize() {
-		synchronized (m_writeWorker) {
-
-			if (!m_isSorted) {
-				System.out.println("Can't analize unsorted array.");
-				return;
-			}
-			int sizeEmenents = (int) m_writeWorker.sizeBytes() / 16;
-			m_writeWorker.goTo(0);
-			long lastHash = 0;
-			for (int i = 0; i < sizeEmenents; i++) {
-				long h = m_writeWorker.readLong();
-				if (i == 0) {
-					lastHash = h;
-					continue;
-				}
-				if (h < lastHash) {
-					System.out.println("Error at pos:" + i + " hash " + h + "less that " + lastHash);
-				}
-				m_writeWorker.shift(8);
-				long hi = m_writeWorker.readLong();
-				m_writeWorker.shift(8);
-				// harray[i]=h;
-				// iarray[i]=hi;
-			}
-		}
-	}
-
-	public static void main(String[] args) {
-	}
-
 }

@@ -22,35 +22,6 @@ public class ByteFileWorked extends ByteAbstractWorker{
 	
 	public long m_fileSize = 0;
 	
-	
-	//public long [] m_hashCache = new long[0];
-	//public int [] m_indexCache = new int[0];
-	//public long m_hashSize = 0;	
-	
-	
-	public static void main(String[] args) {
-		ByteFileWorked worker = new ByteFileWorked("C:/tmp/ByteFileWorked1");
-		worker.append(new byte[] {0,0,0,0,1,1,1,2,2,2});
-		worker.dumpByString("Append");
-		worker.goTo(2);
-		worker.write(new byte[]{9,9,9});
-		worker.dumpByString("Change");
-		worker.goTo(8);
-		worker.write(new byte[]{8,8,8});
-		worker.dumpByString("Change with extended");
-		worker.append(new byte[] {3,3,3});
-		worker.dumpByString("Append again");
-		
-		ByteFileWorked worker2 = new ByteFileWorked("C:/tmp/ByteFileWorked2");
-		worker.goTo(4);
-		worker2.append(worker.read(4));
-		worker2.dumpByString("Readed");
-		worker2.goTo(0);
-		worker.append(worker2.read(4));
-		worker.dumpByString("Append back");
-
-	}
-	
 	public ByteFileWorked(String name) {		
 		if (m_isFinal==false){
 			m_isFinal=false;			
@@ -213,18 +184,10 @@ public class ByteFileWorked extends ByteAbstractWorker{
 	}
 
 	@Override
-	public void dumpByString(String label) {
-		ExtendableByteArray array = new ExtendableByteArray();
-		goTo(0);
-		array.writeFromInputStream(getInputStreamAtPosition());
-		dumpByString(array,label);
-		
-	}
-
-	@Override
 	public long sizeBytes() {
 		// TODO Auto-generated method stub
-		return m_fileSize;//m_file.length();
+		//return m_fileSize;//m_file.length();
+		return m_file.length();
 	}
 
 	@Override

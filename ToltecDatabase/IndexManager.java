@@ -9,9 +9,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import Tools.Log;
 import Tools.MD5;
+import Tools.Pair;
 
-public class IndexManager /*extends Thread*/ {
+public class IndexManager {
 	ArrayList<IndexFile> m_sortedIndexes = new ArrayList<>();
 	IndexFileMaped m_mapedIndex = null;
 	int sortedFiles = 0;
@@ -61,26 +63,19 @@ public class IndexManager /*extends Thread*/ {
 			service.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		} catch (InterruptedException e) {
 		  e.printStackTrace();
-		}
-		
-		
+		}				
 		m_mapedIndex = new IndexFileMaped();
 		m_mapedIndex.init(m_fileNameBase+"."+getRandomHash()+".map");
-		
-		
-		//this.start();
-		/*for (int i = 0 ; ;i++){
-			File f = new File (fileName+"."+i);
-			if (f.exists()){
-				sortedFiles++;
-				IndexFile index = new IndexFile(f.getAbsolutePath(), true);
-				m_sortedIndexes.add(index);
-			}else{
-				break ;
-			}
-		}*/
 	}
 	
+	
+	public IndexFileMaped getIndexFileMaped () {
+		return m_mapedIndex;
+	}
+	
+	public ArrayList<IndexFile> getSortedIndexes (){
+		return m_sortedIndexes;
+	}
 	public void rename (String prefix) {
 		File f = new File(m_fileNameBase);
 		File [] files = f.getParentFile().listFiles();
@@ -94,17 +89,15 @@ public class IndexManager /*extends Thread*/ {
 		}
 	}
 	
-	public void finalizeIndex (IndexFileMaped mapedIndex){
-		
+	public void finalizeIndex (IndexFileMaped mapedIndex){		
 		Runnable subThread = new Runnable() {			
 			@Override
 			public void run() {
 				String hash = getRandomHash();
-				System.out.println("Sorting "+m_fileNameBase+"."+hash);
+				Log.message("Sorting "+m_fileNameBase+"."+hash);
 				mapedIndex.sort();	
-				mapedIndex.close();
-				//((ByteFileWorked)mapedIndex).close();					
-				System.out.println("Save index as "+m_fileNameBase+"."+hash);
+				mapedIndex.close();				
+				Log.message("Save index as "+m_fileNameBase+"."+hash);
 				File f = new File (mapedIndex.m_fileName);
 				f.renameTo(new File (m_fileNameBase+"."+hash));
 				IndexFile indexfile = new IndexFile(new File (m_fileNameBase+"."+hash).getAbsolutePath(), true);
@@ -114,11 +107,7 @@ public class IndexManager /*extends Thread*/ {
 				}
 			}
 		};
-		//System.out.println("Submit");
-		//service.submit(subThread);
 		subThread.run();
-		//System.out.println("End Submit");
-		//new Thread(subThread).start();
 	}
 	ConcurrentLinkedQueue<Pair<Long,Long>> m_addQueue = new ConcurrentLinkedQueue<Pair<Long,Long>>();
 	
@@ -136,34 +125,15 @@ public class IndexManager /*extends Thread*/ {
 		m_mapedIndex.add(hash, index);
 	}
 	
-	/*public void run (){
-		while (true){			
-			while (m_addQueue.isEmpty()==false){
-				Pair<Long,Long> par = m_addQueue.poll();
-				systemAdd(par.first(),par.second());
-				continue ;
-			}
-						
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}*/
 	
 	public int updateHash (long oldHash, long newHash, long oldPos, long newPos){
 		for (IndexFile index : m_sortedIndexes) {
 			Pair<long[],long[]> ipairs = index.getPositionAndIndexesByHash(oldHash);	
-			if (ipairs.m_First.length>0){
-				
+			if (ipairs.first().length>0){			
 				if (oldHash != newHash){
-					// there neen NULL that hashes ;
-					for (int i = 0 ; i < ipairs.m_First.length; i++){
-						if (ipairs.m_Second[i]==oldPos) {
-							index.cleanHashInPostion(ipairs.m_First[i]);
-							//System.out.println(ipairs.m_First[i]);
+					for (int i = 0 ; i < ipairs.first().length; i++){
+						if (ipairs.second()[i]==oldPos) {
+							index.cleanHashInPostion(ipairs.first()[i]);
 							if (oldPos!=newPos)
 								m_mapedIndex.add(newHash, newPos);
 							else
@@ -172,28 +142,20 @@ public class IndexManager /*extends Thread*/ {
 					}
 				}else{
 					if (newPos!=0){
-						for (int i = 0 ; i < ipairs.m_First.length; i++){
-							if (ipairs.m_Second[i]==oldPos) {
-								index.updatePosition (ipairs.m_First[i],newPos);
+						for (int i = 0 ; i < ipairs.first().length; i++){
+							if (ipairs.second()[i]==oldPos) {
+								index.updatePosition (ipairs.first()[i],newPos);
 							}
 						}
 					}
 					
-				}
-				
-				
+				}						
 			}
 		}
 		return m_mapedIndex.updateHash(oldHash, newHash, oldPos, newPos);
-		
-		
 	}
 	
-	public RecordData[] getIndexesByHash (long hash){ // return offsets in record in database
-		int k = 0 ;
-		ArrayList<Long> l1 = new ArrayList<>();
-		ArrayList<Long> l2 = new ArrayList<>();
-		
+	public RecordData[] getIndexesByHash (long hash){ // return offsets in record in database		
 		ArrayList<Pair<long[],long[]> > listPairs = new ArrayList<>();
 		Pair<long[],long[]> pair = m_mapedIndex.getPositionAndIndexesByHash(hash);
 		listPairs.add(pair);
@@ -204,19 +166,12 @@ public class IndexManager /*extends Thread*/ {
 		}
 		ArrayList<RecordData> recordDataList = new ArrayList<>(); 	
 		for (Pair<long[], long[]> ppair : listPairs) {
-			for (int i =0 ; i < ppair.m_Second.length; i++){
-				recordDataList.add(new RecordData(hash,ppair.m_Second[i]));
-				//l1.add(ppair.m_Second[i]);
-										
+			for (int i =0 ; i < ppair.second().length; i++){
+				recordDataList.add(new RecordData(hash,ppair.second()[i]));					
 			}
 		}
-		
-		/*long[] retIndexes = new long [l1.size()];
-		for (int i = 0; i < l1.size(); i++) {
-			retIndexes[i] = l1.get(i);
-		}*/
 		return recordDataList.toArray(new RecordData[recordDataList.size()]);
-		//return retIndexes;
+
 	}
 	
 	public int countElements (){
@@ -227,10 +182,4 @@ public class IndexManager /*extends Thread*/ {
 		count += m_mapedIndex.countElements();
 		return count;
 	}
-	
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-
-	}
-
 }

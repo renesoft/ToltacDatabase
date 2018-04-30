@@ -69,27 +69,7 @@ public abstract class ByteAbstractWorker {
 		//return Arrays.equals(readArray,array);
 	}
 	
-	public abstract long sizeBytes ();
-	public abstract void dumpByString (String label);	
-	public void dumpByString (ExtendableByteArray array, String label){
-		int c = 0 ; 
-		boolean en = false;
-		if (label!=null){
-			System.out.println("=========== begin "+label+" ===========");
-		}
-		for (int i = 0 ; i < array.size(); i++){
-			System.out.print(""+array.buffer()[i]+" ");
-			c++;
-			if (c%10==0){
-				System.out.println("|");
-				en=true;
-			}else{
-				en = false;
-			}
-		}
-		if (en == false)
-			System.out.println("");
-	}
+	public abstract long sizeBytes ();	
 	public long getPosition (){
 		return m_position;
 	}

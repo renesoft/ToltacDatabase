@@ -23,12 +23,12 @@ public class ThreadLocalManaged <T> {
 		}
 	}
 	
-	public void remove () {
+	public T remove () {
 		long id = Thread.currentThread().getId();
 		synchronized (map) {
-			map.remove(id);
+			return map.remove(id);
 		}
-	}
+	}		
 	
 	public void removeAll (ThreadLocalManagedRemoveIterator remover) {
 		synchronized (map) {

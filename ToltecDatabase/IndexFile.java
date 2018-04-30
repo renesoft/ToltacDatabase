@@ -18,22 +18,15 @@ import java.util.Iterator;
 
 import javax.lang.model.element.QualifiedNameable;
 
+import Tools.Log;
+import Tools.Mergesort;
+import Tools.Pair;
+
 public class IndexFile {
 	// public boolean m_cachedInMemory = false;
 	public boolean m_isFinal = false;
 	public boolean m_isSorted = true;
 	public int m_fileCountElements = -1;
-	/*
-	 * public File m_file = null; public RandomAccessFile m_accessFile = null;
-	 * 
-	 * public boolean m_initSuccess = false; public long [] m_hashCache = new
-	 * long[0]; public int [] m_indexCache = new int[0]; public long m_hashSize = 0;
-	 */
-
-	// For not final index
-	// public long m_maxSize = 10000;
-	// public ByteAbstractWorker m_byteWorker = null;
-
 	ThreadLocal<ByteAbstractWorker> m_readWorkers = new ThreadLocal<>();
 	ArrayList<ByteAbstractWorker> m_readerWorkersKeeper = new ArrayList<>();
 	ByteAbstractWorker m_writeWorker = null;
@@ -54,6 +47,10 @@ public class IndexFile {
 		return worker;
 	}
 
+	public String getFileName () {
+		return m_fileName;
+	}
+	
 	public IndexFile() {
 
 	}
@@ -142,8 +139,6 @@ public class IndexFile {
 		long pos = 0;
 		byte[] arrayHash = Primitives.LongToByteArray(hash);// ByteBuffer.allocate(8).putLong(hash).array();
 		if (m_isSorted) {
-			// pos = BinarySearch.binarySearchInByte(m_byteWorker, arrayHash, 0,
-			// countElements());
 			pos = BinarySearch.binarySearchAlt(byteWorker, hash);
 		}
 		long len = byteWorker.sizeBytes();
@@ -193,18 +188,6 @@ public class IndexFile {
 		return pair.getValue();
 	}
 
-	/*public void nullRecords(long offset) {
-		synchronized (m_writeWorker) {
-			dumpData("nullRecords Before:", offset, 2);
-			m_writeWorker.goTo(offset);
-			m_writeWorker.writeLong(0);
-			m_writeWorker.shift(8);
-			m_writeWorker.writeLong(0);
-			dumpData("nullRecords After :", offset, 2);
-		}
-
-	}*/
-
 	public void updatePosition(long offset, long newPosition) {
 		synchronized (m_writeWorker) {
 			m_writeWorker.goTo(offset + 8);
@@ -212,52 +195,9 @@ public class IndexFile {
 		}
 	}
 
-	public void dumpData(String label, long offset, int count) {
-		ByteAbstractWorker byteWorker = getReaderWorker();
-		if (label != null && label.length() > 0)
-			System.out.print(label + ":");
-		byteWorker.goTo(offset - (count * 16));
-		for (int i = -count; i < count; i++) {
-			if (i == 0)
-				System.out.print(" [");
-			System.out.print(byteWorker.readLongShift());
-			System.out.print(" ");
-			System.out.print(byteWorker.readLongShift());
-			if (i == 0)
-				System.out.print("] ");
-			System.out.print("|");
-		}
-		System.out.println("");
-	}
-
-	public void dump(String label) {
-		ByteAbstractWorker byteWorker = getReaderWorker();
-		byteWorker.goTo(0);
-		while (true) {
-			byte[] a = byteWorker.read(8);
-			if (a == null)
-				break;
-			byteWorker.shift(8);
-			byte[] b = byteWorker.read(8);
-			if (b == null)
-				break;
-			byteWorker.shift(8);
-
-			for (int i = 0; i < a.length; i++) {
-				System.out.print("" + a[i] + " ");
-			}
-			System.out.print("|");
-			for (int i = 0; i < b.length; i++) {
-				System.out.print("" + b[i] + " ");
-			}
-			System.out.println("");
-		}
-	}
 	public void updateHashInPosition (long position, long hash, long dataPosition) {
-		//long checkHash = Primitives.LongFromByteArray(m_writeWorker.readInPos(position, 8));
 		m_writeWorker.goTo(position);
-		m_writeWorker.writeLong(hash);
-		//long checkHash2 = Primitives.LongFromByteArray(m_writeWorker.readInPos(position, 8));
+		m_writeWorker.writeLong(hash);	
 		m_writeWorker.shift(8);
 		m_writeWorker.writeLong(dataPosition);
 				
@@ -273,8 +213,7 @@ public class IndexFile {
 		synchronized (m_writeWorker) {
 			Pair<long[], long[]> pair = getPositionAndIndexesByHash(oldHash);
 			long[] pos = pair.getKey();
-			long[] posOffsets = pair.getValue();
-						
+			long[] posOffsets = pair.getValue();						
 			if (oldHash == newHash) {
 				for (int i = 0; i < pos.length; i++) {
 					if (posOffsets[i] != oldPos)
@@ -285,40 +224,18 @@ public class IndexFile {
 				for (int i = 0; i < pos.length; i++) {
 					if (posOffsets[i] != oldPos)
 						continue;
-					long l1 = m_writeWorker.sizeBytes();
 					cleanHashInPostion(pos[i]);
-					long l2 = m_writeWorker.sizeBytes();
-					//System.out.println("123");
 				}				
 			}
-			/*for (int i = 0; i < pos.length; i++) {
-				if (posOffsets[i] != oldPos)
-					continue;
-				if (oldHash == newHash) {
-
-					long checkHash = Primitives.LongFromByteArray(m_writeWorker.readInPos(pos[i], 8));
-
-					m_writeWorker.goTo(pos[i]);
-					m_writeWorker.writeLong(newHash);
-					long checkHash2 = Primitives.LongFromByteArray(m_writeWorker.readInPos(pos[i], 8));
-					m_writeWorker.shift(8);
-					if (newPos != 0) {
-						m_writeWorker.writeLong(newPos);
-					}
-				} else {
-					m_writeWorker.goTo(pos[i] + 8);
-					m_writeWorker.writeLong(newPos);
-				}
-			}*/
 			return 0;
 		}
 	}
 
-	void analize() {
+	boolean analize() {
 		ByteAbstractWorker byteWorker = getReaderWorker();
 		if (!m_isSorted) {
-			System.out.println("Can't analize unsorted array.");
-			return;
+			Log.message("Can't analize unsorted array.");
+			return false;
 		}
 		int sizeEmenents = (int) byteWorker.sizeBytes() / 16;
 		byteWorker.goTo(0);
@@ -330,18 +247,15 @@ public class IndexFile {
 				continue;
 			}
 			if (h < lastHash) {
-				System.out.println("Error at pos:" + i + " hash " + h + "less that " + lastHash);
+				Log.error("Error at pos:" + i + " hash " + h + "less that " + lastHash);
+				ToltecDatabase.getTroubleSolver().indexFileAnalizeFailed(this);
+				return false;
 			}
 			byteWorker.shift(8);
-			long hi = byteWorker.readLong();
+			byteWorker.readLong();
 			byteWorker.shift(8);
-			// harray[i]=h;
-			// iarray[i]=hi;
 		}
-	}
-
-	public static void main(String[] args) {
-
+		return true;
 	}
 
 }

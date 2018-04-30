@@ -7,56 +7,40 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import ExternalInterfaces.ITroubleSolver;
+import Tools.ExtendableByteArray;
+import Tools.Log;
 import Tools.MurmurHash;
+import Tools.Pair;
 import Tools.ThreadLocalManaged;
 
 public class DataFile extends Thread {
 
 	public static class WriteQuery {
-		public static int OP_ADD = 0;
-		public static int OP_UPDATE = 1;
-		public static int OP_DELETE = 2;
+		public static final int OP_ADD = 0;
+		public static final int OP_UPDATE = 1;
+		public static final int OP_DELETE = 2;
 		DataRow data;
 		String whereCols;
 		Object whereValue;
 		int operation = 0;
 	}
 
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		DataFile file = new DataFile("C:/tmp/first.database", false);
-		file.addColumn("id", TableSchema.TYPE_INT, false, false);
-		file.addColumn("name", TableSchema.TYPE_STRING, false, false);
-		file.addColumn("hash", TableSchema.TYPE_LONG, false, false);
-
-		file.databaseDump("");
-
-		DataRow row = new DataRow();
-		row.put("id", 1);
-		row.put("name", "Aleksey Abelar");
-		row.put("hash", 9223000000000000000L);
-		file.addData(row);
-		row.put("id", 2);
-		row.put("name", "Abstracto Nagua");
-		row.put("hash", 1223000000000000000L);
-		file.addData(row);
-
-	}
-
-	// File format [ 4 byte - size of all data block] [ [data 1 - N bytes] [data 2 -
-	// N bytes] ... [data K - N bytes] ]
-	public boolean m_isFinal = false;
-	public TableSchema m_schema = new TableSchema();
+	boolean m_isFinal = false;
+	TableSchema m_schema = new TableSchema();
 	String m_fileName;
-	// String m_indexFolder;
 	String m_indexFileName;
-	// ByteAbstractWorker m_fileWorker ;
-	//ThreadLocal<ByteAbstractWorker> m_readWorkers = new ThreadLocal<>();
+	final int m_queueMaxSize = 100;
 	ThreadLocalManaged<ByteAbstractWorker> m_readWorkers = new ThreadLocalManaged<>();
-	
+	LinkedBlockingQueue<WriteQuery> m_writeQueue = new LinkedBlockingQueue<>(m_queueMaxSize);
 	ByteAbstractWorker m_writeWorker = null;
-	// ByteAbstractWorker m_writeWorkerUpdate = null;
-
+	
+	public TableSchema getTableSchema () {
+		return m_schema;
+	}
 	public ByteAbstractWorker getReaderWorker() {
 		ByteAbstractWorker worker = m_readWorkers.get();
 		if (worker == null) {
@@ -66,36 +50,31 @@ public class DataFile extends Thread {
 		return worker;
 	}
 
-	public void removeReaderWorker() {		
-		m_readWorkers.removeAll(new ThreadLocalManaged.ThreadLocalManagedRemoveIterator<ByteAbstractWorker>() {
+	public void removeReaderWorker() {
+		m_readWorkers.remove().close();
+		/*m_readWorkers.removeAll(new ThreadLocalManaged.ThreadLocalManagedRemoveIterator<ByteAbstractWorker>() {
 			@Override
 			public void removed(ByteAbstractWorker t) {
-				t.close();				
+				t.close();
 			}
-		});
-		
-		/*ByteAbstractWorker baw = m_readWorkers.get();
-		if (baw!=null)
-			baw.close();
-		m_readWorkers.remove();*/
+		});*/
 	}
 
-	
-	public void close () {
-		if (m_writeWorker!=null)
+	public void close() {
+		if (m_writeWorker != null)
 			m_writeWorker.close();
-		removeReaderWorker();				
+		removeReaderWorker();
 	}
-	
-	public void remove () {
-		new File (m_fileName).delete();
+
+	public void remove() {
+		new File(m_fileName).delete();
 	}
-	
-	public void rename (String name) {
-		File f = new File (m_fileName);		
-		f.renameTo(new File (f.getParentFile(),name));
+
+	public void rename(String name) {
+		File f = new File(m_fileName);
+		f.renameTo(new File(f.getParentFile(), name));
 	}
-	
+
 	// ByteAbstractWorker m_positionFileWorker ;
 	public boolean addColumn(String name, int type, boolean isIndex, boolean isSorted) {
 		m_schema.m_tableTypesWithNames.put(name, type);
@@ -141,9 +120,6 @@ public class DataFile extends Thread {
 			m_indexFileName = new File(indexFolder, name).getAbsolutePath();
 		}
 		m_writeWorker = new ByteFileWorked(m_fileName);
-		// m_writeWorkerUpdate = new ByteFileWorked(m_fileName);
-		// m_fileWorker = new ByteFileWorked(fileName);
-		// m_positionFileWorker = new ByteFileWorked(fileName+".positions");
 	}
 
 	long objectToHash(int type, Object obj) throws Exception {
@@ -153,46 +129,38 @@ public class DataFile extends Thread {
 	}
 
 	byte[] objectToByteArray(int type, Object obj) throws Exception {
-		ExtendableByteArray eba = new ExtendableByteArray(8);
-		if (type == TableSchema.TYPE_INT) {
+		// ExtendableByteArray eba = new ExtendableByteArray(8);
+		switch (type) {
+		case TableSchema.TYPE_INT:
 			if (obj == null)
 				obj = new Integer(0);
 			return Primitives.IntToByteArray((Integer) obj);
-			// return ByteBuffer.allocate(4).putInt((Integer)obj).array();
-		}
-		if (type == TableSchema.TYPE_LONG) {
+		case TableSchema.TYPE_LONG:
 			if (obj == null)
 				obj = new Long(0);
 			return Primitives.LongToByteArray((Long) obj);
-			// return ByteBuffer.allocate(8).putLong((Long)obj).array();
-		}
-		if (type == TableSchema.TYPE_FLOAT) {
+		case TableSchema.TYPE_FLOAT:
 			if (obj == null)
 				obj = new Float(0);
-			Primitives.FloatToByteArray((Float) obj);
-			// return ByteBuffer.allocate(4).putFloat((Float)obj).array();
-		}
-		if (type == TableSchema.TYPE_DOUBLE) {
+			return Primitives.FloatToByteArray((Float) obj);
+		case TableSchema.TYPE_DOUBLE:
 			if (obj == null)
 				obj = new Double(0);
-			Primitives.DoubleToByteArray((Double) obj);
-			// return ByteBuffer.allocate(8).putDouble((Double)obj).array();
-		}
-		if (type == TableSchema.TYPE_STRING) {
+			return Primitives.DoubleToByteArray((Double) obj);
+		case TableSchema.TYPE_STRING:
 			if (obj == null)
 				obj = new String();
-			String s = (String) obj;
-			return s.getBytes("UTF-8");
-		}
-		if (type == TableSchema.TYPE_BYTEARRAY) {
+			return ((String) obj).getBytes("UTF-8");
+		case TableSchema.TYPE_BYTEARRAY:
 			if (obj == null)
 				obj = new byte[0];
 			return (byte[]) obj;
+		case TableSchema.TYPE_OBJECT:
+			break;
+		default:
+			break;
 		}
-		if (type == TableSchema.TYPE_OBJECT) {
-			// TODO: need add Kryo lib
-		}
-		return eba.bufferCopyWithTrim();
+		return null;
 	}
 
 	Object byteArrayToObject(int type, byte[] array) throws Exception {
@@ -200,30 +168,24 @@ public class DataFile extends Thread {
 	}
 
 	Object byteArrayToObject(int type, byte[] array, int offset, int len) throws Exception {
-		if (type == TableSchema.TYPE_INT) {
+
+		switch (type) {
+		case TableSchema.TYPE_INT:
 			return Primitives.IntFromByteArray(array, offset);
-			// return ByteBuffer.wrap(array,offset,len).getInt();
-		}
-		if (type == TableSchema.TYPE_LONG) {
+		case TableSchema.TYPE_LONG:
 			return Primitives.LongFromByteArray(array, offset);
-			// return ByteBuffer.wrap(array,offset,len).getLong();
-		}
-		if (type == TableSchema.TYPE_FLOAT) {
+		case TableSchema.TYPE_FLOAT:
 			return Primitives.FloatFromByteArray(array, offset);
-			// return ByteBuffer.wrap(array,offset,len).getFloat();
-		}
-		if (type == TableSchema.TYPE_DOUBLE) {
+		case TableSchema.TYPE_DOUBLE:
 			return Primitives.DoubleFromByteArray(array, offset);
-			// return ByteBuffer.wrap(array,offset,len).getDouble();
-		}
-		if (type == TableSchema.TYPE_STRING) {
+		case TableSchema.TYPE_STRING:
 			return new String(array, offset, len, "UTF-8");
-		}
-		if (type == TableSchema.TYPE_BYTEARRAY) {
+		case TableSchema.TYPE_BYTEARRAY:
 			return Arrays.copyOfRange(array, offset, offset + len);
-		}
-		if (type == TableSchema.TYPE_OBJECT) {
-			// TODO: need add Kryo lib
+		case TableSchema.TYPE_OBJECT:
+			break;
+		default:
+			break;
 		}
 		return null;
 	}
@@ -244,20 +206,24 @@ public class DataFile extends Thread {
 				return -1;
 			}
 			int type = m_schema.m_tableTypesWithNames.get(pair[0]);
-			if (type == TableSchema.TYPE_INT) {
+			switch (type) {
+			case TableSchema.TYPE_INT:
 				map.put(pair[0], Integer.parseInt(pair[1]));
-			}
-			if (type == TableSchema.TYPE_LONG) {
+				break;
+			case TableSchema.TYPE_LONG:
 				map.put(pair[0], Long.parseLong(pair[1]));
-			}
-			if (type == TableSchema.TYPE_FLOAT) {
+				break;
+			case TableSchema.TYPE_FLOAT:
 				map.put(pair[0], Float.parseFloat(pair[1]));
-			}
-			if (type == TableSchema.TYPE_DOUBLE) {
+				break;
+			case TableSchema.TYPE_DOUBLE:
 				map.put(pair[0], Double.parseDouble(pair[1]));
-			}
-			if (type == TableSchema.TYPE_STRING) {
+				break;
+			case TableSchema.TYPE_STRING:
 				map.put(pair[0], pair[1]);
+				break;
+			default:
+				break;
 			}
 		}
 		return addData(map);
@@ -268,7 +234,6 @@ public class DataFile extends Thread {
 		ExtendableByteArray eba = new ExtendableByteArray();
 		for (String colName : m_schema.m_tableTypesWithNames.keySet()) {
 			int type = m_schema.m_tableTypesWithNames.get(colName);
-
 			Object obj = data.get(colName);
 			try {
 				byte[] array = objectToByteArray(type, obj);
@@ -293,11 +258,7 @@ public class DataFile extends Thread {
 				try {
 					byte[] array = objectToByteArray(type, obj);
 					long hash = MurmurHash.hash64(array, array.length);
-					if (hash == -3996688691163958177l || hash == -8064181893932269848l) {
-						System.out.println(hash);
-					}
 					indexFile.systemAdd(hash, offset);
-					//indexFile.add(hash, offset);
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -311,9 +272,7 @@ public class DataFile extends Thread {
 	public long addDataBytes(byte[] rowBytes) {
 		synchronized (m_writeWorker) {
 			long pos = -1;
-			// synchronized (m_writeWorker) {
 			try {
-				// m_writeWorker.goTo(m_writeWorker.sizeBytes());
 				pos = this.newRowOffset();
 				m_writeWorker.append(TableSchema.MAGIC_BEGIN);
 				m_writeWorker.append(objectToByteArray(TableSchema.TYPE_INT, rowBytes.length), rowBytes);
@@ -364,7 +323,6 @@ public class DataFile extends Thread {
 				return null;
 			}
 		} else {
-			// synchronized (m_fileWorker) {
 			ByteAbstractWorker fileWorker = getReaderWorker();
 			long lastPos = 0;
 			fileWorker.goTo(0);
@@ -377,23 +335,15 @@ public class DataFile extends Thread {
 				Object rO = row1.get(whereCols);
 				if (rO.hashCode() == whereValue.hashCode()) {
 					retLong.add(new RecordData(null, lastPos));
-					// retLong.add(lastPos);
 				}
 				lastPos = fileWorker.m_position;
 				ret.add(row1);
 			}
-			// m_fileWorker.goTo(lastPos);
-			// return ret ;
-			// }
 		}
 		return retLong.toArray(new RecordData[retLong.size()]);
-		// return Primitives.arrayListToLongArray(retLong);
 	}
 
-	// int lastReadBytes = 0;
-	int readData(DataRow ret) {
-		// HashMap<String,Object> ret = new HashMap<>();
-		// synchronized (m_fileWorker) {
+	public int readData(DataRow ret) {
 		ByteAbstractWorker fileWorker = getReaderWorker();
 		byte[] magicArray = fileWorker.read(4);
 		if (magicArray == null)
@@ -401,7 +351,9 @@ public class DataFile extends Thread {
 		try {
 			Integer magicNumber = (Integer) byteArrayToObject(TableSchema.TYPE_INT, magicArray);
 			if (magicNumber != TableSchema.MAGIC_NUMBER) {
-				System.out.println("Error! Magic number not compared! Please repair table.");
+				long pos = fileWorker.getPosition();
+				long full = fileWorker.sizeBytes();
+				System.out.println("Error! Magic number not compared! Please repair table. ");
 				return -1;
 			}
 		} catch (Exception e1) {
@@ -419,9 +371,6 @@ public class DataFile extends Thread {
 			Integer size = (Integer) byteArrayToObject(TableSchema.TYPE_INT, sizeArray);
 			boolean deleted = false;
 			if (size < 0) {
-				/*
-				 * int skip = -1*size; m_fileWorker.shift(skip); ret = null; return 0 ;
-				 */
 				size = -1 * size;
 				deleted = true;
 			}
@@ -455,9 +404,6 @@ public class DataFile extends Thread {
 			e.printStackTrace();
 			return -1;
 		}
-
-		// }
-		// return -1 ;
 	}
 
 	public void printStackAtPos(long pos, int sizeLeft, int sizeRight) {
@@ -487,37 +433,29 @@ public class DataFile extends Thread {
 
 	public ArrayList<DataRow> getData(String name, Object value) {
 		ByteAbstractWorker fileWorker = getReaderWorker();
-		// synchronized (m_fileWorker) {
 		ArrayList<DataRow> ret = new ArrayList<>();
 		int type = m_schema.m_tableTypesWithNames.get(name);
 		IndexManager indexFile = m_schema.m_columnsToIndexFilePrefix.get(name);
-		// indexFile.dump("");
 
 		byte[] array;
 		try {
 			array = objectToByteArray(type, value);
 			long hash = MurmurHash.hash64(array, array.length);
-			// byte [] hashArray = ByteBuffer.allocate(8).putLong(hash).array();
-			// -3996688691163958177 ? -8064181893932269848
-			// long[] indexes = indexFile.getIndexesByHash(hash);
 			RecordData[] indexes = indexFile.getIndexesByHash(hash);
 			for (RecordData i : indexes) {
 				if (i.position == -1)
 					continue;
-				// byte [] posArray = m_positionFileWorker.readInPos(i*8, 8);
-				// long position = ByteBuffer.wrap(posArray).getLong();
 				fileWorker.goTo(i.position);
 				DataRow obj = new DataRow();
 				obj.offset = i.position;
-				int r = readData(obj);				
+				int r = readData(obj);
 				ret.add(obj);
 			}
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		
+
 		return ret;
 		// }
 
@@ -534,47 +472,49 @@ public class DataFile extends Thread {
 		return m_writeWorker.sizeBytes();
 	}
 
-	public void databaseDump(String label) {
-		ByteAbstractWorker fileWorker = getReaderWorker();
-		fileWorker.goTo(0);
-		int rows = 0;
-		while (true) {
-			DataRow row1 = new DataRow();
-			int readed = readData(row1);
-			if (readed == -1)
-				break;
-			rows++;
-			System.out.println("===== row " + rows + " ====");
-			for (String s : row1.keySet()) {
-				Object value = row1.get(s);
-				System.out.println(s + ":" + value.toString());
+	public boolean pushToQueue(WriteQuery qw) {
+		boolean nextTry = true;
+		while (nextTry == true) {
+			try {
+				while (m_writeQueue.offer(qw, 10, TimeUnit.MILLISECONDS) == false) {
+				}
+				return true;
+			} catch (InterruptedException e) {
+				Log.error("m_writeQueue offer interupted");
+				switch (ToltecDatabase.getTroubleSolver().dataNotOfferedInQuere(qw)) {
+				case ITroubleSolver.ACT_NOTING:
+					nextTry = false;
+					break;
+				case ITroubleSolver.ACT_RETRY:
+					break;
+				default:
+					nextTry = false;
+					break;
+				}
 			}
 		}
+		return false;
 
 	}
 
 	public long addData(DataRow data) {
 		synchronized (m_writeQueue) {
-			// return systemAddData(data);
-			// ToltecDatabase.log("pool size:"+m_addQueue.size());
 			WriteQuery wq = new WriteQuery();
 			wq.data = data;
-			if (m_writeQueue.size() > 100)
-				System.out.println("waiting m_addQueue.size > 100");
-			while (m_writeQueue.size() > 100) {
-
-				try {
-					Thread.sleep(10);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-			m_writeQueue.offer(wq);
-			return 0;
+			pushToQueue(wq);
 		}
+		/*
+		 * if (m_writeQueue.size() > 100)
+		 * System.out.println("waiting m_addQueue.size > 100"); while
+		 * (m_writeQueue.size() > 100) {
+		 * 
+		 * try { Thread.sleep(10); } catch (InterruptedException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); } }
+		 */
+
+		return 0;
 	}
-	
+
 	public void updateData(DataRow data, String whereCols, Object whereValue) {
 		synchronized (m_writeQueue) {
 			WriteQuery qw = new WriteQuery();
@@ -582,39 +522,32 @@ public class DataFile extends Thread {
 			qw.whereCols = whereCols;
 			qw.whereValue = whereValue;
 			qw.operation = WriteQuery.OP_UPDATE;
-			if (m_writeQueue.size() > 100)
-				System.out.println("waiting m_addQueue.size > 100");
-			while (m_writeQueue.size() > 100) {
-				try {
-					Thread.sleep(10);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-			m_writeQueue.offer(qw);
+			pushToQueue(qw);
+			/*
+			 * if (m_writeQueue.size() > 100)
+			 * System.out.println("waiting m_addQueue.size > 100"); while
+			 * (m_writeQueue.size() > 100) { try { Thread.sleep(10); } catch
+			 * (InterruptedException e) { // TODO Auto-generated catch block
+			 * e.printStackTrace(); } } m_writeQueue.offer(qw);
+			 */
 		}
 	}
 
 	public void deleteData(String whereCols, Object whereValue) {
 		synchronized (m_writeQueue) {
-
 			WriteQuery qw = new WriteQuery();
 			// qw.data = data;
 			qw.whereCols = whereCols;
 			qw.whereValue = whereValue;
 			qw.operation = WriteQuery.OP_DELETE;
-			if (m_writeQueue.size() > 100)
-				System.out.println("waiting m_addQueue.size > 100");
-			while (m_writeQueue.size() > 100) {
-				try {
-					Thread.sleep(10);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-			m_writeQueue.offer(qw);
+			pushToQueue(qw);
+			/*
+			 * if (m_writeQueue.size() > 100)
+			 * System.out.println("waiting m_addQueue.size > 100"); while
+			 * (m_writeQueue.size() > 100) { try { Thread.sleep(10); } catch
+			 * (InterruptedException e) { // TODO Auto-generated catch block
+			 * e.printStackTrace(); } } m_writeQueue.offer(qw);
+			 */
 		}
 	}
 
@@ -641,37 +574,30 @@ public class DataFile extends Thread {
 			for (RecordData l : posBytes) {
 				if (l.position == -1)
 					continue;
-				if (l.position < 0) {
-					System.out.println("!");
-					findRecords(whereCols, whereValue);
-				}
+				/*
+				 * if (l.position < 0) { System.out.println("!"); findRecords(whereCols,
+				 * whereValue); }
+				 */
 				hashAndOldPos.add(new Pair<Long, Long>(deleteHash, l.position));
 				fileWorker.goTo(l.position);
 				DataRow readedObject = new DataRow();
 				int lenFullBock = readData(readedObject);
-				int lenRow = lenFullBock - 4;
+				int lenRow = lenFullBock - 8;
 				fileWorker.goTo(l.position);
-				// m_fileWorker.shift(4); // Info about record length
-
 				HashMap<String, Map.Entry<Long, Long>> oldIndexes = new HashMap<>();
 				HashMap<String, Map.Entry<Long, Long>> oldIndexesPositions = new HashMap<>();
-
 				// Create new row HashMap and calculate new index hashes
-
 				// STEP 1: invert len in first 4 bytes like len 100 -> -100 (that mean empty
 				// space);
 				int nl = lenRow * -1;
-
 				m_writeWorker.goTo(l.position + 4);
-
 				// printStackAtPos(l.position, 10, 10);
 				m_writeWorker.writeInt(nl);
+				fileWorker.goTo(l.position);
+				readData(new DataRow());
 				// printStackAtPos(l.position, 10, 10);
 			}
 			deleteIndexes(indexFile, hashAndOldPos);
-
-			// updateIndexes(oldIndexes, oldIndexesPositions);
-
 		}
 
 	}
@@ -680,7 +606,6 @@ public class DataFile extends Thread {
 		synchronized (m_writeWorker) {
 			int k = 0;
 			ByteAbstractWorker fileWorker = getReaderWorker();
-			// ArrayList<HashMap<String, Object>> datagg = getData(whereCols, whereValue);
 			IndexManager indexFile = m_schema.m_columnsToIndexFilePrefix.get(whereCols);
 			int type1 = m_schema.m_tableTypesWithNames.get(whereCols);
 			DataRow obj = new DataRow();
@@ -688,23 +613,17 @@ public class DataFile extends Thread {
 			try {
 				array = objectToByteArray(type1, whereValue);
 				long hash = MurmurHash.hash64(array, array.length);
-				// byte [] hashArray = ByteBuffer.allocate(8).putLong(hash).array();
-				// -3996688691163958177 ? -8064181893932269848
-				// long[] indexes = indexFile.getIndexesByHash(hash);
 				RecordData[] indexes = indexFile.getIndexesByHash(hash);
 				for (RecordData i : indexes) {
 					if (i.position == -1)
 						continue;
 					fileWorker.goTo(i.position);
 					int r = readData(obj);
-					// ret.add(obj);
 				}
 			} catch (Exception e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
-
-			// long[] posBytes = findRecords(whereCols, whereValue);
 			RecordData[] posBytes = findRecords(whereCols, whereValue);
 			for (RecordData l : posBytes) {
 				if (l.position == -1)
@@ -712,17 +631,11 @@ public class DataFile extends Thread {
 				fileWorker.goTo(l.position);
 				DataRow readedObject = new DataRow();
 				int lenFullBock = readData(readedObject);
-				int lenRow = lenFullBock - 4;
+				int lenRow = lenFullBock - 8;
 				fileWorker.goTo(l.position);
 				// m_fileWorker.shift(4); // Info about record length
 				// boolean needRebuild = false;
 				boolean needRebuild = true;
-				/*
-				 * for (String colName : data.keySet()) { int type =
-				 * m_schema.m_tableTypesWithNames.get(colName); int sizeBytes =
-				 * TableSchema.typeSizeBites(type); if (sizeBytes == 0) needRebuild = true; }
-				 */
-
 				HashMap<String, Map.Entry<Long, Long>> oldIndexes = new HashMap<>();
 				HashMap<String, Map.Entry<Long, Long>> oldIndexesPositions = new HashMap<>();
 
@@ -759,7 +672,6 @@ public class DataFile extends Thread {
 					byte[] rowBytes = buildRow(readedObject);
 					if (rowBytes.length == lenRow) {
 						m_writeWorker.goTo(l.position);
-						// new row same length as before. just write.
 						m_writeWorker.shift(4 + 4);
 						m_writeWorker.write(rowBytes);
 					} else {
@@ -767,9 +679,7 @@ public class DataFile extends Thread {
 						// space);
 						int nl = lenRow * -1;
 						m_writeWorker.goTo(l.position + 4);
-						// printStackAtPos(l.position, 10, 10);
 						m_writeWorker.writeInt(nl);
-						// printStackAtPos(l.position, 10, 10);
 						// STEP 2: write new row at end
 						long newRowOffset = addDataBytes(rowBytes);
 						if (newRowOffset != -1) {
@@ -785,33 +695,14 @@ public class DataFile extends Thread {
 						}
 					}
 					// There we rebuild row and write again to current position or to end.
-				} /*
-					 * else { // There we update fixed len values for (String colName :
-					 * m_schema.m_tableTypesWithNames.keySet()) { int type =
-					 * m_schema.m_tableTypesWithNames.get(colName); Object updateObj =
-					 * data.get(colName); if (updateObj == null) { // just skip, nothing update
-					 * there m_writeWorker.skipBytesByType(type); } else { byte[] updateArray =
-					 * null; ; try { updateArray = objectToByteArray(type, updateObj); } catch
-					 * (Exception e) { // TODO Auto-generated catch block e.printStackTrace(); } int
-					 * sizeBytes = TableSchema.typeSizeBites(type); if (sizeBytes > 0) {
-					 * m_writeWorker.write(updateArray); } } } }
-					 */
+				}
 				updateIndexes(oldIndexes, oldIndexesPositions);
 
 			}
 		}
 	}
 
-	// ConcurrentLinkedQueue<HashMap<String, Object>> m_addQueue = new
-	// ConcurrentLinkedQueue<HashMap<String, Object>>();
-	// ConcurrentLinkedQueue<HashMap<String, Object>> m_updateQueue = new
-	// ConcurrentLinkedQueue<HashMap<String, Object>>();
-	ConcurrentLinkedQueue<WriteQuery> m_writeQueue = new ConcurrentLinkedQueue<WriteQuery>();
-
-
-
 	long systemAddData(DataRow data) {
-
 		long t1 = System.currentTimeMillis();
 		byte[] rowBytes = buildRow(data);
 		long t2 = System.currentTimeMillis();
@@ -819,19 +710,19 @@ public class DataFile extends Thread {
 		long t3 = System.currentTimeMillis();
 		addIndexes(data, ret);
 		long t4 = System.currentTimeMillis();
-		ToltecDatabase.log("build:" + (t2 - t1) + "ms | out:" + (t3 - t2) + "ms | index:" + (t4 - t3) + "ms | total:"
+		Log.message("build:" + (t2 - t1) + "ms | out:" + (t3 - t2) + "ms | index:" + (t4 - t3) + "ms | total:"
 				+ (t4 - t1) + "ms.");
 		return ret;
 
 	}
 
-	public ArrayList<DataRow> readAll(int offset, int count ) {
+	public ArrayList<DataRow> readAll(int offset, int count) {
 		ByteAbstractWorker fileWorker = getReaderWorker();
 		// synchronized (m_fileWorker) {
 		long lastPos = fileWorker.m_position;
 		fileWorker.goTo(0);
 		ArrayList<DataRow> ret = new ArrayList<>();
-		int c= 0 ;
+		int c = 0;
 		while (true) {
 			DataRow row1 = new DataRow();
 			row1.offset = fileWorker.m_position;
@@ -843,50 +734,59 @@ public class DataFile extends Thread {
 			if (readed == -1)
 				break;
 			c++;
-			if (c>offset) {
+			if (c > offset) {
 				ret.add(row1);
 			}
-			if (count>0&&ret.size()>=count) {
-				break ;
+			if (count > 0 && ret.size() >= count) {
+				break;
 			}
 		}
 		fileWorker.goTo(lastPos);
 		return ret;
-		
+
 	}
+
 	public ArrayList<DataRow> readAll() {
-		return readAll (0,-1);
+		return readAll(0, -1);
 
 	}
 
 	public boolean m_QueryEmptry = true;
 
 	public void run() {
-		while (true) {
-
-			while (m_writeQueue.isEmpty() == false) {
-				m_QueryEmptry = false;
-				WriteQuery wq = m_writeQueue.poll();
-				// HashMap<String, Object> addObj = m_addQueue.poll();
-				if (wq.operation == WriteQuery.OP_ADD) {
-					systemAddData(wq.data);
+		m_QueryEmptry = false;
+		while (true) {			
+			WriteQuery wq = null;
+			if (m_writeQueue.size() == 0) {				
+				m_QueryEmptry = true;
+				synchronized (m_writeQueue) {
+					m_writeQueue.notifyAll();	
 				}
-				if (wq.operation == WriteQuery.OP_UPDATE) {
-					systemUpdateData(wq.data, wq.whereCols, wq.whereValue);
-				}
-				if (wq.operation == WriteQuery.OP_DELETE) {
-					systemDeleteData(wq.whereCols, wq.whereValue);
-				}
-
+				
 			}
-			m_QueryEmptry = true;
 			try {
-				Thread.sleep(10);
+				wq = m_writeQueue.poll(1, TimeUnit.SECONDS);
+				m_QueryEmptry = false;
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
+			if (wq == null)
+				continue;
+			switch (wq.operation) {
+			case WriteQuery.OP_ADD:
+				systemAddData(wq.data);
+				break;
+			case WriteQuery.OP_UPDATE:
+				systemUpdateData(wq.data, wq.whereCols, wq.whereValue);
+				break;
+			case WriteQuery.OP_DELETE:
+				systemDeleteData(wq.whereCols, wq.whereValue);
+				break;
+			default:
+				break;
+			}
 		}
+
 	}
 
 }

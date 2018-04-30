@@ -4,6 +4,8 @@ package ToltecDatabase;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
+import Tools.SortWorker;
+
 public class BinarySearch {
 
 	public static int binarySearch(long[] array, long value, int left, int right) {

@@ -1,30 +1,9 @@
 package ToltecDatabase;
 
-public class ByteArrayWorker extends ByteAbstractWorker{
+import Tools.ExtendableByteArray;
 
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		ByteArrayWorker worker = new ByteArrayWorker(null);
-		worker.append(new byte[] {0,0,0,0,1,1,1,2,2,2});
-		worker.dumpByString("Append");
-		worker.goTo(2);
-		worker.write(new byte[]{9,9,9});
-		worker.dumpByString("Change");
-		worker.goTo(8);
-		worker.write(new byte[]{8,8,8});
-		worker.dumpByString("Change with extended");
-		worker.append(new byte[] {3,3,3});
-		worker.dumpByString("Append again");
-		
-		ByteArrayWorker worker2 = new ByteArrayWorker(null);
-		worker.goTo(4);
-		worker2.append(worker.read(4));
-		worker2.dumpByString("Readed");
-		worker2.goTo(0);
-		worker.append(worker2.read(4));
-		worker.dumpByString("Append back");
-		
-	}
+public class ByteArrayWorker extends ByteAbstractWorker{
+	
 	ExtendableByteArray m_array = null;	
 	public ByteArrayWorker (String name){
 		init(name);
@@ -59,10 +38,6 @@ public class ByteArrayWorker extends ByteAbstractWorker{
 		}else{
 			return null;
 		}
-	}
-	
-	public void dumpByString (String label){
-		dumpByString(m_array,label);
 	}
 
 	@Override
