@@ -53,13 +53,7 @@ db.addData(row);
 any update working async and not return (yet) info about finish. If write stack will be full, thread will be paused.
 no need wait for write but you can:
 ```
-while(db.commitFinished()==false) {
-    try {
-        Thread.sleep(10);
-    } catch (InterruptedException e) {
-        e.printStackTrace();
-    }
-}
+db.awaitCommit();
 ```
 
 ### Lets read data:
