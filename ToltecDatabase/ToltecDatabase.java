@@ -130,7 +130,6 @@ public class ToltecDatabase {
 
 	public void readData(DataRow.DataRowReader reader, boolean includeDeleted) {
 		ByteAbstractWorker fileWorker = m_dataFile.getReaderWorker();
-
 		fileWorker.goTo(0);
 		long lastPos = fileWorker.m_position;
 		while (true) {
@@ -157,18 +156,20 @@ public class ToltecDatabase {
 		ByteAbstractWorker fileWorker = m_dataFile.getReaderWorker();
 		fileWorker.goTo(0);	
 		try {
-			for (int i = 0; i < fileWorker.sizeBytes() - 3; i++) {
+			for (long i = 0; i < fileWorker.sizeBytes() - 3; i++) {
 				fileWorker.goTo(i);
 				int readedNumber = fileWorker.readInt();
 				if (readedNumber == TableSchema.MAGIC_NUMBER) {
 					DataRow row1 = new DataRow();
-					int readed = m_dataFile.readData(row1);
-					System.out.println("|i"+i+" + "+readed);
+					int readed = m_dataFile.readData(row1);			
+					if (readed<0) {
+						Log.error("Salvage data: readed < 0 ("+readed+")");
+					}
 					if (row1.deleted==1&&includeDeleted==false) 
-						continue ;
-					if (readed > 0) {
+						continue ;					
+					if (readed > 0) {						
 						reader.read(row1);
-						i+=(readed-1);						
+						i+=(readed-1);
 					}
 				}
 
@@ -202,7 +203,36 @@ public class ToltecDatabase {
 		}		
 		m_dataFile.close();
 	}
-	
+	public boolean validate () {
+		ByteAbstractWorker fileWorker = m_dataFile.getReaderWorker();
+		fileWorker.goTo(0);
+		long lastPos = fileWorker.m_position;
+		long size =  fileWorker.sizeBytes();
+		long lastPercned = -1 ;
+		while (true) {
+			DataRow row1 = new DataRow();
+			row1.offset = fileWorker.m_position;
+			int readed = m_dataFile.readData(row1);
+			
+			lastPos = fileWorker.m_position;
+			long part = lastPos * 100;
+			part = part / size;
+			if (part>lastPercned) {
+				lastPercned= part;
+				Log.message("Validating "+this.m_databaseName+" "+part+"%");
+			}
+			if (readed == 0)
+				continue;
+			if (readed == -1)
+				break;						
+		}
+		if (lastPos != fileWorker.sizeBytes()) {
+			Log.message("Validating "+this.m_databaseName+" failed.");
+			return false;
+		}
+		Log.message("Validating "+this.m_databaseName+" passed.");
+		return true ;
+	}
 	public void deleteDatabase () {
 		for (String colName : m_dataFile.m_schema.m_tableTypesWithNames.keySet()) {
 			IndexManager im = m_dataFile.m_schema.m_columnsToIndexFilePrefix.get(colName);

@@ -19,6 +19,7 @@ import ExternalInterfaces.RaidHttpResponce;
 import HttpServer.HttpGetDataInterface;
 import HttpServer.MultiThreadedServer;
 import Tools.ExtendableByteArray;
+import Tools.Log;
 
 public class ToltecRaid {
 
@@ -136,7 +137,7 @@ public class ToltecRaid {
 			return m_dbInstances.get(code).addData(data);
 			// return m_dataFile.addData(data);
 		} else {
-			System.out.println("Data can't be add without Primary index define.");
+			Log.error("ToltecRaid::addData(DataRow data):Data can't be add without Primary index define.");
 			return -1;
 		}
 
@@ -157,60 +158,7 @@ public class ToltecRaid {
 		m_dbInstances.get(node).repair();
 	}
 
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-		ToltecRaid raid = new ToltecRaid();
-		raid.addInstance(0x0, "D:/tmp_tdb/RaidDatat0x0", "X:/tmp/RaidIndex0x0", "Raid_db");
-		raid.addInstance(0x1, "F:/tmp_tdb/RaidDatat0x1", "X:/tmp/RaidIndex0x1", "Raid_db");
-		raid.addInstance(0x2, "G:/tmp_tdb/RaidDatat0x2", "X:/tmp/RaidIndex0x2", "Raid_db");
-		raid.addInstance(0x3, "H:/tmp_tdb/RaidDatat0x3", "X:/tmp/RaidIndex0x3", "Raid_db");
-		raid.addCol("url", TableSchema.TYPE_STRING, true);
-		raid.addCol("random_hash", TableSchema.TYPE_INT, false);
-		raid.addCol("data", TableSchema.TYPE_BYTEARRAY, false);
-		raid.addCol("end", TableSchema.TYPE_INT, false);
-		raid.setPrimaryIndex("url");
-		int mode = 1;
-		if (mode == 1) {
-			for (int i = 0; i < 1000; i++) {
-				String url = "http://www." + i + ".com";
-				ArrayList<DataRow> data = raid.getData("url", url);
-				if (data.size() > 0) {
-					byte[] buf = (byte[]) data.get(0).get("data");
-					System.out.println("" + url + ": " + buf.length + " bytes | instances " + data.size());
-				} else {
-					System.out.println("" + url + ": | instances " + data.size());
-				}
-
-			}
-		}
-		if (mode == 0) {
-			String[] array = new String[4];
-			for (int i = 1; i < 5; i++) {
-				String fileName = "D:\\tmp_tdb\\" + i + ".html";
-				try {
-					FileInputStream fis = new FileInputStream(fileName);
-					ExtendableByteArray eba = new ExtendableByteArray();
-					eba.writeFromInputStream(fis);
-					byte[] buf = eba.bufferCopyWithTrim();
-					String s = new String(buf);
-					array[i - 1] = s;
-				} catch (FileNotFoundException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-			}
-
-			for (int i = 0; i < 1000; i++) {
-				String url = "http://www." + i + ".com";
-				int file = i % 4;
-				DataRow row = DataRow.create().add("url", url).add("random_hash", 0).add("data", array[file].getBytes())
-						.add("end", 0);
-				raid.addData(row);
-			}
-		}
-
-	}
-
-
+	public boolean validate (int node) {
+		return m_dbInstances.get(node).validate();
+	}	
 }

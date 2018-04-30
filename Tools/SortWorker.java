@@ -103,8 +103,7 @@ public class SortWorker {
 	            return false; //proven not sorted
 	        }
 
-	    }
-	    System.out.println(dub);
+	    }	    
 	    return true; //got to the end, must be sorted
 	}
 }

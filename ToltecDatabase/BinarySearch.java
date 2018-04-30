@@ -27,7 +27,7 @@ public class BinarySearch {
             // Key is in a[lo..hi] or not present.
             long mid = lo + (hi - lo) / 2;
             if (mid<0){
-            	System.out.println("?!");
+            	
             }
             raf.seek(mid*12);
             long aMid = raf.readLong();
@@ -48,8 +48,7 @@ public class BinarySearch {
     public static long simpleSearchInByte(ByteAbstractWorker array, byte[] value, long left, long right) {
     	long pos = left ;
     	array.goTo(pos);
-    	while(true){
-    		System.out.println(array.getPosition());
+    	while(true){    		
     		byte [] data = array.read(8);
     		if (data == null)
     			return -1;

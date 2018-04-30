@@ -6,6 +6,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
+import Tools.Log;
+
 public class ByteFileWorked extends ByteAbstractWorker{
 	
 	//public boolean m_cachedInMemory = false;
@@ -118,13 +120,11 @@ public class ByteFileWorked extends ByteAbstractWorker{
 			m_accessFile.write(block);
 			long ext = (m_position+block.length)-m_fileSize;
 			if (ext>0)
-				m_fileSize+=ext;
-				
-			
-			long check = m_file.length();
+				m_fileSize+=ext;							
+			/*long check = m_file.length();
 			if (check != m_fileSize){
-				System.out.println("Error calculate");
-			}
+				Log.error("ByteFileWorked::write(byte[] block) - Error calculate");
+			}*/
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
