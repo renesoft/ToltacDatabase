@@ -12,7 +12,7 @@ public class Log {
 		System.out.println(timeMark()+" [ERROR]:"+message);
 	}
 	public static void error (String message, Object source) {
-		System.out.println("timeMark()+ [ERROR from "+source.toString()+"]:"+message);
+		System.out.println(timeMark()+" [ERROR from "+source.toString()+"]:"+message);
 	}
 	public static void warning (String message) {
 		System.out.println(timeMark()+" [warning]:"+message);

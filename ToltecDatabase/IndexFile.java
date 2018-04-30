@@ -123,7 +123,7 @@ public class IndexFile {
 	public void add(long hash, long index) {
 		synchronized (m_writeWorker) {
 			if (m_isFinal) {
-				System.out.println("Index is final!");
+				Log.error("Index is final!",this);
 				return;
 			}
 			m_writeWorker.append(Primitives.LongToByteArray(hash));

@@ -18,6 +18,7 @@ import java.util.Iterator;
 
 import javax.lang.model.element.QualifiedNameable;
 
+import Tools.Log;
 import Tools.Pair;
 
 public class IndexFileMaped extends IndexFile {
@@ -63,9 +64,9 @@ public class IndexFileMaped extends IndexFile {
 		m_writeWorker = new ByteFileWorked(fileName);
 		long check = m_writeWorker.sizeBytes() % 16;
 		if (check != 0) {
-			System.out.println("Index broken!");
+			Log.error("Index broken!",this);
 		} else {
-			System.out.println("Index fine.");
+			Log.message("Index fine.");
 		}
 		m_fileCountElements = (int) (m_writeWorker.sizeBytes() / 16);
 		for (int i = 0; i < m_fileCountElements; i++) {
@@ -113,39 +114,12 @@ public class IndexFileMaped extends IndexFile {
 		return pair.getValue();
 	}
 
-	public void dump(String label) {
-		synchronized (m_writeWorker) {
-			m_writeWorker.goTo(0);
-			while (true) {
-				byte[] a = m_writeWorker.read(8);
-				if (a == null)
-					break;
-				m_writeWorker.shift(8);
-				byte[] b = m_writeWorker.read(8);
-				if (b == null)
-					break;
-				m_writeWorker.shift(8);
-
-				for (int i = 0; i < a.length; i++) {
-					System.out.print("" + a[i] + " ");
-				}
-				System.out.print("|");
-				for (int i = 0; i < b.length; i++) {
-					System.out.print("" + b[i] + " ");
-				}
-				System.out.println("");
-			}
-		}
-	}
-
 	public int updateHash(long oldHash, long newHash, long oldPos, long newPos) {
 		super.updateHash(oldHash, newHash, oldPos, newPos);
 		ArrayList<Long> ids = m_mapedHashes.get(oldHash);
 		if (ids==null)
 			return -1;
 		ArrayList<Integer> ipositions = m_mapedPositions.get(oldHash);
-		//ArrayList<Long> Newids = m_mapedHashes.get(newHash);
-		//ArrayList<Integer> Newipositions = m_mapedPositions.get(newHash);		
 		if (oldHash == newHash) {			
 				for (int i = 0; i < ids.size(); i++) {
 					if (ids.get(i) == oldPos) {

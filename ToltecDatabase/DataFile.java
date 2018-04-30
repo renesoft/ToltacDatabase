@@ -16,6 +16,7 @@ import Tools.Log;
 import Tools.MurmurHash;
 import Tools.Pair;
 import Tools.ThreadLocalManaged;
+import Tools.ThreadLocalManaged.ThreadLocalManagedRemoveIterator;
 
 public class DataFile extends Thread {
 
@@ -50,20 +51,27 @@ public class DataFile extends Thread {
 		return worker;
 	}
 
-	public void removeReaderWorker() {
-		m_readWorkers.remove().close();
-		/*m_readWorkers.removeAll(new ThreadLocalManaged.ThreadLocalManagedRemoveIterator<ByteAbstractWorker>() {
-			@Override
-			public void removed(ByteAbstractWorker t) {
-				t.close();
-			}
-		});*/
+	public void removeReaderWorker() {		
+		ByteAbstractWorker baw = m_readWorkers.remove();
+		if (baw!=null)
+			baw.close();		
+	}
+	
+	public void removeAllReaderWorker() {		
+		synchronized (m_readWorkers) {
+			m_readWorkers.removeAll(new ThreadLocalManagedRemoveIterator<ByteAbstractWorker>() {
+				@Override
+				public void removed(ByteAbstractWorker t) {
+					t.close();				
+				}
+			});	
+		}		
 	}
 
 	public void close() {
 		if (m_writeWorker != null)
 			m_writeWorker.close();
-		removeReaderWorker();
+		removeAllReaderWorker();
 	}
 
 	public void remove() {
@@ -156,6 +164,7 @@ public class DataFile extends Thread {
 				obj = new byte[0];
 			return (byte[]) obj;
 		case TableSchema.TYPE_OBJECT:
+			// TODO: Add object serialization
 			break;
 		default:
 			break;
@@ -183,6 +192,7 @@ public class DataFile extends Thread {
 		case TableSchema.TYPE_BYTEARRAY:
 			return Arrays.copyOfRange(array, offset, offset + len);
 		case TableSchema.TYPE_OBJECT:
+			// TODO: Add object serialization
 			break;
 		default:
 			break;
@@ -351,9 +361,7 @@ public class DataFile extends Thread {
 		try {
 			Integer magicNumber = (Integer) byteArrayToObject(TableSchema.TYPE_INT, magicArray);
 			if (magicNumber != TableSchema.MAGIC_NUMBER) {
-				long pos = fileWorker.getPosition();
-				long full = fileWorker.sizeBytes();
-				System.out.println("Error! Magic number not compared! Please repair table. ");
+				Log.error("Error! Magic number not compared! Please repair table. ",this);
 				return -1;
 			}
 		} catch (Exception e1) {
@@ -404,32 +412,7 @@ public class DataFile extends Thread {
 			e.printStackTrace();
 			return -1;
 		}
-	}
-
-	public void printStackAtPos(long pos, int sizeLeft, int sizeRight) {
-		try {
-			ByteAbstractWorker fileWorker = getReaderWorker();
-			long cur = fileWorker.getPosition();
-			long d = pos - sizeLeft;
-			if (d < 0) {
-				sizeLeft += d;
-			}
-			fileWorker.goTo(pos - sizeLeft);
-			byte[] buf = fileWorker.read(sizeLeft + sizeRight);
-			for (int i = 0; i < buf.length; i++) {
-				if (i == sizeLeft)
-					System.out.print("[");
-				System.out.print(buf[i]);
-				if (i == sizeLeft)
-					System.out.print("]");
-				System.out.print(" ");
-			}
-			System.out.println("");
-			fileWorker.goTo(cur);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
+	}	
 
 	public ArrayList<DataRow> getData(String name, Object value) {
 		ByteAbstractWorker fileWorker = getReaderWorker();
@@ -503,14 +486,6 @@ public class DataFile extends Thread {
 			wq.data = data;
 			pushToQueue(wq);
 		}
-		/*
-		 * if (m_writeQueue.size() > 100)
-		 * System.out.println("waiting m_addQueue.size > 100"); while
-		 * (m_writeQueue.size() > 100) {
-		 * 
-		 * try { Thread.sleep(10); } catch (InterruptedException e) { // TODO
-		 * Auto-generated catch block e.printStackTrace(); } }
-		 */
 
 		return 0;
 	}
@@ -523,31 +498,17 @@ public class DataFile extends Thread {
 			qw.whereValue = whereValue;
 			qw.operation = WriteQuery.OP_UPDATE;
 			pushToQueue(qw);
-			/*
-			 * if (m_writeQueue.size() > 100)
-			 * System.out.println("waiting m_addQueue.size > 100"); while
-			 * (m_writeQueue.size() > 100) { try { Thread.sleep(10); } catch
-			 * (InterruptedException e) { // TODO Auto-generated catch block
-			 * e.printStackTrace(); } } m_writeQueue.offer(qw);
-			 */
 		}
 	}
 
 	public void deleteData(String whereCols, Object whereValue) {
 		synchronized (m_writeQueue) {
 			WriteQuery qw = new WriteQuery();
-			// qw.data = data;
 			qw.whereCols = whereCols;
 			qw.whereValue = whereValue;
 			qw.operation = WriteQuery.OP_DELETE;
 			pushToQueue(qw);
-			/*
-			 * if (m_writeQueue.size() > 100)
-			 * System.out.println("waiting m_addQueue.size > 100"); while
-			 * (m_writeQueue.size() > 100) { try { Thread.sleep(10); } catch
-			 * (InterruptedException e) { // TODO Auto-generated catch block
-			 * e.printStackTrace(); } } m_writeQueue.offer(qw);
-			 */
+
 		}
 	}
 
@@ -574,10 +535,6 @@ public class DataFile extends Thread {
 			for (RecordData l : posBytes) {
 				if (l.position == -1)
 					continue;
-				/*
-				 * if (l.position < 0) { System.out.println("!"); findRecords(whereCols,
-				 * whereValue); }
-				 */
 				hashAndOldPos.add(new Pair<Long, Long>(deleteHash, l.position));
 				fileWorker.goTo(l.position);
 				DataRow readedObject = new DataRow();
