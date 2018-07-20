@@ -103,6 +103,12 @@ public class ToltecRaid {
 		return true;
 
 	}
+	
+	public void awaitCommit() {
+		for (Integer i : m_dbInstances.keySet()) {
+			m_dbInstances.get(i).awaitCommit();
+		}
+	}
 
 	public void updateData(DataRow data, String whereCols, Object whereValue) {
 		if (whereCols.compareTo(m_primaryIndex) == 0) {
@@ -119,6 +125,8 @@ public class ToltecRaid {
 	public void deleteData(String whereCols, Object whereValue) {
 		if (whereCols.compareTo(m_primaryIndex) == 0) {
 			int code = whereValue.hashCode() % m_dbInstances.size();
+			if (code < 0)
+				code = code * -1;
 			m_dbInstances.get(code).deleteData(whereCols, whereValue);
 		} else {
 			for (Integer i : m_dbInstances.keySet()) {

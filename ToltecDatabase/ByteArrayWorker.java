@@ -10,7 +10,7 @@ public class ByteArrayWorker extends ByteAbstractWorker{
 	}
 	
 	public void init (String name){
-		m_array = new ExtendableByteArray(10);
+		m_array = new ExtendableByteArray();
 	}
 	
 	public void append (byte [] block){

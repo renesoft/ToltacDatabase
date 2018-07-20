@@ -3,6 +3,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -14,13 +15,13 @@ import Tools.MD5;
 import Tools.Pair;
 
 public class IndexManager {
-	ArrayList<IndexFile> m_sortedIndexes = new ArrayList<>();
-	IndexFileMaped m_mapedIndex = null;
-	int sortedFiles = 0;
-	String m_fileNameBase;
-	String m_baseName ;
-	Random rand = new Random(System.currentTimeMillis());
-	ExecutorService service = Executors.newFixedThreadPool(20);
+	protected ArrayList<IndexFile> m_sortedIndexes = new ArrayList<>();
+	protected IndexFileMaped m_mapedIndex = null;
+	protected int sortedFiles = 0;
+	protected String m_fileNameBase;
+	protected String m_baseName ;
+	protected Random rand = new Random(System.currentTimeMillis());
+	protected ExecutorService service = Executors.newFixedThreadPool(20);
 	public String getRandomHash (){		
 		String l = ""+rand.nextLong();
 		l = MD5.generateHash(l);
@@ -66,8 +67,86 @@ public class IndexManager {
 		}				
 		m_mapedIndex = new IndexFileMaped();
 		m_mapedIndex.init(m_fileNameBase+"."+getRandomHash()+".map");
+		for (IndexFile index : m_sortedIndexes) {			
+			boolean b = index.analize();
+			if (b) {
+				Log.message("Index "+ index.m_fileName+ " is correct.");
+			}else {
+				Log.error("Index "+ index.m_fileName+ " is NOT correct.");
+			}
+		}
+		mergeToOne();
 	}
 	
+	
+	public void mergeToOne () {
+		long countSum =0;	
+		if (m_sortedIndexes.size()<=1)
+			return ;
+		for (IndexFile index : m_sortedIndexes) {			
+			countSum+=index.countElements();
+		}		
+		long [] iarrays = new long [m_sortedIndexes.size()];
+		long [] darrays = new long [m_sortedIndexes.size()];
+		boolean [] ends = new boolean [m_sortedIndexes.size()];
+		long [] countMax = new long [m_sortedIndexes.size()];
+		long [] countCurrent = new long [m_sortedIndexes.size()];
+		int o = 0 ; 
+		
+		int idx = -1;
+		
+		String hash = getRandomHash();		
+		IndexFile mergedIndex = new IndexFile(new File (m_fileNameBase+"."+hash).getAbsolutePath(), false);		
+		for (IndexFile index : m_sortedIndexes) {
+			index.getReaderWorker().goTo(0);
+			countMax[o] = index.countElements();
+			if (countMax[o]>0) {				
+				iarrays[o]=index.getReaderWorker().readLongShift();
+				darrays[o]=index.getReaderWorker().readLongShift();	
+				ends[o]=false;
+			}else {
+				ends[o]=true;
+			}
+			countCurrent[o]=0;
+			o++;
+		}
+		int c = 0 ;
+		while(true) {
+			long minL = Long.MAX_VALUE;
+			boolean needBreak = true;
+			for (int i = 0 ; i < m_sortedIndexes.size(); i++) {				
+				if (ends[i])
+					continue ;	
+				needBreak=false;
+				if (iarrays[i]<=minL) {
+					idx = i ;
+					minL = iarrays[i]; 
+				}											
+			}
+			if (needBreak)
+				break ;						
+			if (darrays[idx]!=-1) {				
+				mergedIndex.add(iarrays[idx], darrays[idx]);
+			}
+			c++;
+			countCurrent[idx]++;
+			if (countCurrent[idx]<countMax[idx]) {
+				iarrays[idx]=m_sortedIndexes.get(idx).getReaderWorker().readLongShift();
+				darrays[idx]=m_sortedIndexes.get(idx).getReaderWorker().readLongShift();							
+			}else {
+				ends[idx]=true;
+			}
+			
+		}	
+		for (int i = 0 ; i < m_sortedIndexes.size(); i++) {			
+			m_sortedIndexes.get(i).close();
+			m_sortedIndexes.get(i).delete();
+		}
+		m_sortedIndexes.clear();
+		mergedIndex.markAsSorted();
+		m_sortedIndexes.add(mergedIndex);
+		Log.message("Sorted indexes into one "+mergedIndex.getFileName());
+	}
 	
 	public IndexFileMaped getIndexFileMaped () {
 		return m_mapedIndex;

@@ -23,8 +23,8 @@ import Tools.Pair;
 
 public class IndexFileMaped extends IndexFile {
 
-	HashMap<Long, ArrayList<Long>> m_mapedHashes = new HashMap<>();
-	HashMap<Long, ArrayList<Integer>> m_mapedPositions = new HashMap<>();
+	protected HashMap<Long, ArrayList<Long>> m_mapedHashes = new HashMap<>();
+	protected HashMap<Long, ArrayList<Integer>> m_mapedPositions = new HashMap<>();
 
 	public IndexFileMaped() {
 

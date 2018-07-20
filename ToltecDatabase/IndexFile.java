@@ -24,13 +24,13 @@ import Tools.Pair;
 
 public class IndexFile {
 	// public boolean m_cachedInMemory = false;
-	public boolean m_isFinal = false;
-	public boolean m_isSorted = true;
-	public int m_fileCountElements = -1;
-	ThreadLocal<ByteAbstractWorker> m_readWorkers = new ThreadLocal<>();
-	ArrayList<ByteAbstractWorker> m_readerWorkersKeeper = new ArrayList<>();
-	ByteAbstractWorker m_writeWorker = null;
-	String m_fileName;
+	protected boolean m_isFinal = false;
+	protected boolean m_isSorted = true;
+	protected int m_fileCountElements = -1;
+	protected ThreadLocal<ByteAbstractWorker> m_readWorkers = new ThreadLocal<>();
+	protected ArrayList<ByteAbstractWorker> m_readerWorkersKeeper = new ArrayList<>();
+	protected ByteAbstractWorker m_writeWorker = null;
+	protected String m_fileName;
 
 	public ByteAbstractWorker getReaderWorker() {
 		ByteAbstractWorker worker = m_readWorkers.get();
@@ -118,6 +118,10 @@ public class IndexFile {
 			// SortWorker.qSort(m_byteWorker, 0, countElements()-1);
 			m_isSorted = true;
 		}
+	}
+	
+	public void markAsSorted () {
+		m_isSorted = true;
 	}
 
 	public void add(long hash, long index) {
